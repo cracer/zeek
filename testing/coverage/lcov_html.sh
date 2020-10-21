@@ -23,7 +23,8 @@ function verify_run {
 trap finish EXIT
 
 HTML_REPORT=1
-COVERALLS_API_KEY=""
+COVERALLS_REPO_TOKEN=""
+COVERAGE_HTML_DIR=""
 
 function usage {
     usage="\
@@ -36,10 +37,13 @@ Usage: $0 <options>
 
   Options:
     --help             Display this output.
-    --coveralls KEY    Report coverage data to Coveralls.io using the specified
-                       API key. Enabling this option disables the HTML report.
+    --html DIR         This is the default mode, but this argument can be passed
+                       to make it explicit. It also can be used to pass an optional
+                       destination directory for the HTML output.
+    --coveralls TOKEN  Report coverage data to Coveralls.io using the specified
+                       repo token. Enabling this option disables the HTML report.
                        This option requires the coveralls-lcov Ruby gem to be
-		       installed.
+                       installed.
 "
 
     echo "${usage}"
@@ -48,9 +52,25 @@ Usage: $0 <options>
 
 while (( "$#" )); do
     case "$1" in
+	--html)
+	    HTML_REPORT=1
+	    if [ ${#2} -eq 0 ]; then
+		COVERAGE_HTML_DIR="coverage-html"
+		shift 1
+	    else
+		COVERAGE_HTML_DIR=$2
+		shift 2
+	    fi
+	    ;;
 	--coveralls)
+	    if [ ${#2} -eq 0 ]; then
+		echo "ERROR: Coveralls repo token must be passed with --coveralls argument."
+		echo
+		usage
+	    fi
+
 	    HTML_REPORT=0
-	    COVERALLS_API_KEY=$2
+	    COVERALLS_REPO_TOKEN=$2
 	    shift 2
 	    ;;
 	--help)
@@ -58,15 +78,18 @@ while (( "$#" )); do
 	    shift 1
 	    ;;
 	*)
-	    echo "Invalid option '$1'. Try $0 --help to see available options."
-	    exit 1
+	    COVERAGE_HTML_DIR="${1:-"coverage-html"}"
+	    shift 1
 	    ;;
     esac
 done
 
 TMP=".tmp.$$"
 COVERAGE_FILE="./$TMP/coverage.info"
-COVERAGE_HTML_DIR="${1:-"coverage-html"}"
+
+if [ -z "${COVERAGE_HTML_DIR}" ]; then
+    COVERAGE_HTML_DIR="coverage-html"
+fi
 
 # Files and directories that will be removed from the counts in step 5. Directories
 # need to be surrounded by escaped wildcards.
@@ -109,5 +132,5 @@ if [ $HTML_REPORT -eq 1 ]; then
     verify_run "genhtml -o $COVERAGE_HTML_DIR $COVERAGE_FILE"
 else
     echo -n "Reporting to Coveralls..."
-    verify_run "coveralls-lcov -t ${COVERALLS_API_KEY} ${COVERAGE_FILE}"
+    verify_run "coveralls-lcov -t ${COVERALLS_REPO_TOKEN} ${COVERAGE_FILE}"
 fi
